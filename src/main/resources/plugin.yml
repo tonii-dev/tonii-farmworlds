@@ -1,0 +1,11 @@
+name: tonii-farmworlds
+version: '1.0-SNAPSHOT'
+main: io.github.toniidev.toniifarmworlds.ToniiFarmWorlds
+api-version: '1.21'
+commands:
+  creafattoria:
+    description: Crea una fattoria
+    usage: /<command>
+  fattoria:
+    description: Apre il menu generico della fattoria
+    usage: /<command>
