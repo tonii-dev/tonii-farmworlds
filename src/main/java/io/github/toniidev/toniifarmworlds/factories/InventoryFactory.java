@@ -68,6 +68,39 @@ public class InventoryFactory implements Listener {
         InventoryFactory.factories.add(this);
     }
 
+    public InventoryFactory clone() {
+        InventoryFactory clone = new InventoryFactory(this.get(), this.getMainPluginInstance())
+                .setTitle(this.getTitle());
+
+        if (this.getActions() != null) {
+            Map<Integer, InventoryInterface> clonedActions = new HashMap<>(this.getActions());
+            clone.setActions(clonedActions);
+        }
+
+        if (this.getGlobalAction() != null) {
+            clone.setGlobalAction(this.getGlobalAction());
+        }
+
+        if (this.getRedirects() != null) {
+            Map<Integer, Inventory> clonedRedirects = new HashMap<>(this.getRedirects());
+            clone.setRedirects(clonedRedirects);
+        }
+
+        if (this.getInventoryToShowOnClose() != null) {
+            clone.setInventoryToShowOnClose(this.getInventoryToShowOnClose());
+        }
+
+        for (int i = 0; i < this.inventory.getSize(); i++) {
+            clone.setClicksAllowed(i, this.getClicksPermissionStatus(i));
+        }
+
+        return clone;
+    }
+
+    public InventoryInterface getGlobalAction() {
+        return globalAction;
+    }
+
     /**
      * Creates an InventoryFactory instance starting from a new Inventory.
      *
@@ -141,6 +174,22 @@ public class InventoryFactory implements Listener {
     public InventoryFactory addItem(List<ItemStack> itemStacks) {
         for (ItemStack itemStack : itemStacks) {
             this.inventory.addItem(itemStack);
+        }
+        return this;
+    }
+
+    /**
+     * Adds the given ItemStack(s) to the Inventory that this InventoryFactory instance is managing
+     *
+     * @param itemStacks The list of ItemStack(s) to add to the Inventory
+     * @return This InventoryFactoryInstance
+     */
+    public InventoryFactory addItem(List<ItemStack> itemStacks, boolean unique) {
+        for (ItemStack itemStack : itemStacks) {
+            if(!unique){
+                this.inventory.addItem(itemStack);
+            }
+            else this.inventory.setItem(this.inventory.firstEmpty(), itemStack);
         }
         return this;
     }

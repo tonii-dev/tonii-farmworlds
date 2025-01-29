@@ -3,6 +3,7 @@ package io.github.toniidev.toniifarmworlds.utils;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.plugin.Plugin;
 
 import java.util.Arrays;
 import java.util.List;
@@ -10,6 +11,12 @@ import java.util.List;
 public class InitializeUtils {
     private final CommandExecutor executorClass;
     private List<String> commands;
+
+    public static Plugin mainInstance;
+
+    public static void setMainInstance(Plugin plugin){
+        mainInstance = plugin;
+    }
 
     public InitializeUtils(CommandExecutor executor) {
         executorClass = executor;

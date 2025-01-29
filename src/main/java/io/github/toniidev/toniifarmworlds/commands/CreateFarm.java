@@ -3,7 +3,6 @@ package io.github.toniidev.toniifarmworlds.commands;
 import io.github.toniidev.toniifarmworlds.classes.Farm;
 import io.github.toniidev.toniifarmworlds.utils.CommandUtils;
 import io.github.toniidev.toniifarmworlds.utils.StringUtils;
-import io.github.toniidev.toniifarmworlds.utils.WorldUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.command.Command;
@@ -45,8 +44,7 @@ public class CreateFarm implements CommandExecutor {
         player.sendMessage(StringUtils.formatColorCodes('&', "&e[Mondo] &aFattoria:&7 Sto creando la tua " +
                 "fattoria. Attendi..."));
         try{
-            WorldUtils.cloneWorld(TEMPLATE_WORLD, worldName);
-            World world = new Farm(player).createWorld();
+            World world = new Farm(player).createWorld(TEMPLATE_WORLD);
             world.setSpawnLocation(-4, -60, -6);
             player.teleport(world.getSpawnLocation());
             player.sendMessage(StringUtils.formatColorCodes('&', "&e[Mondo] &aFattoria:&7 Fattoria creata! Buon divertimento."));

@@ -18,6 +18,7 @@ import org.bukkit.plugin.Plugin;
 
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -81,6 +82,8 @@ public class FarmManagement {
                             .get())
                     .setAction(2, e -> {
                         // Teleport the player to their farm's spawn location
+                        System.out.println(
+                                Farm.reverse((Player) e.getWhoClicked()).get().getWorldName());
                         e.getWhoClicked().teleport(Farm.reverse((Player) e.getWhoClicked()).get().getWorld().getSpawnLocation());
                     });
 
@@ -131,9 +134,7 @@ public class FarmManagement {
                         .addBlankLoreLine()
                         .addLoreLine(StringUtils.formatColorCodes('&', "&eClicca per saperne di più!"))
                         .get())
-                .setAction(3, e -> {
-
-                });
+                .setAction(3, e -> e.getWhoClicked().openInventory(getWhitelistHome(player, plugin)));
 
         if (!Farm.reverse(player).get().getHistory().isEmpty()) {
             historyFactory.addBlankLoreLine()
@@ -158,7 +159,7 @@ public class FarmManagement {
         Map<ItemStack, Farm> farmItemMap = Farm.getFarmsPlayerIsWhitelistedIn(player).stream()
                 .collect(Collectors.toMap(
                         farm -> new ItemStackFactory(Material.PLAYER_HEAD)
-                                .setName(StringUtils.formatColorCodes('&', "&aFattoria di &e" + farm.getOwner().getDisplayName()))
+                                .setName(StringUtils.formatColorCodes('&', "&aFattoria di &e" + farm.getOwnerAsPlayer().getDisplayName()))
                                 .addLoreLine("Vai nella sua fattoria e fai quello che vuoi.")
                                 .addBlankLoreLine()
                                 .addLoreLine(StringUtils.formatColorCodes('&', "&eClicca per teletrasportarti!"))
@@ -170,7 +171,7 @@ public class FarmManagement {
         List<ItemStack> items = new ArrayList<>(farmItemMap.keySet());
 
         // Create the inventory factory
-        InventoryFactory base = new InventoryFactory(5, "Altre fattorie", plugin)
+        InventoryFactory base = new InventoryFactory(6, "Altre fattorie", plugin)
                 .setClicksAllowed(false)
                 .setInventoryToShowOnClose(FarmManagement.getHome(player, plugin))
                 .setGlobalAction(e -> {
@@ -184,7 +185,7 @@ public class FarmManagement {
                 });
 
         // Create the inventory with support for multiple pages if needed
-        return new MultipleInventoryFactory(items, base, plugin).get();
+        return new MultipleInventoryFactory(items, base).get();
     }
 
     /**
@@ -220,10 +221,125 @@ public class FarmManagement {
         // Create a base inventory for the history with a fallback inventory for when it is closed
         InventoryFactory factory = new InventoryFactory(6, "Cronologia", plugin)
                 .setClicksAllowed(false)
-                .setInventoryToShowOnClose(getFarmManagementHome(farm.getOwner(), plugin));
+                .setInventoryToShowOnClose(getFarmManagementHome(farm.getOwnerAsPlayer(), plugin));
 
         // Generate and return the inventory using the created item stacks
-        return new MultipleInventoryFactory(itemStacks, factory, plugin).get();
+        return new MultipleInventoryFactory(itemStacks, factory).get();
     }
 
+    public static Inventory getWhitelistHome(Player player, Plugin plugin){
+        Farm farm = Farm.reverse(player).get();
+
+        InventoryFactory base = new InventoryFactory(1, "Whitelist", plugin)
+                .setClicksAllowed(false)
+                .setInventoryToShowOnClose(getFarmManagementHome(player, plugin))
+                .fill(new ItemStackFactory(Material.BLACK_STAINED_GLASS_PANE)
+                        .setName(" ").get());
+
+        ItemStackFactory manageFactory = new ItemStackFactory(Material.FILLED_MAP)
+                .setName(StringUtils.formatColorCodes('&', "&6Gestisci giocatori whitelistati"))
+                .addLoreLine("Visualizza i giocatori attualmente whitelistati")
+                .addLoreLine("e, se vuoi, rimuovili dalla whitelist")
+                .addBlankLoreLine()
+                .addLoreLine(StringUtils.formatColorCodes('&', "&fCi sono &b" + farm.getWhitelist().size() + "&f giocatori attualmente"))
+                .addLoreLine(StringUtils.formatColorCodes('&', "&fwhitelistati nella tua fattoria"));
+
+        if(!farm.getWhitelist().isEmpty()){
+            manageFactory.addBlankLoreLine()
+                    .addLoreLine(StringUtils.formatColorCodes('&', "&eClicca per gestire!"));
+
+            base.setAction(3, e -> e.getWhoClicked().openInventory(getManageWhitelist(player, plugin)));
+        }
+
+        base.setItem(3, manageFactory.get());
+
+        ItemStackFactory addFactory = new ItemStackFactory(Material.FILLED_MAP)
+                .setName(StringUtils.formatColorCodes('&', "&9Aggiungi giocatore alla whitelist"))
+                .addLoreLine("Scegli tra la lista dei giocatori attualmente")
+                .addLoreLine("online qualcuno da aggiungere alla whitelist")
+                .addBlankLoreLine()
+                .addLoreLine(StringUtils.formatColorCodes('&', "&fCi sono &b" + (Bukkit.getOnlinePlayers().size() - 1) + "&f giocatori attualmente online nel server"))
+                .addLoreLine(StringUtils.formatColorCodes('&', "&foltre a te. In questa lista non compariranno"))
+                .addLoreLine(StringUtils.formatColorCodes('&', "&fi giocatori già whitelistati."));
+
+        if(!(Bukkit.getOnlinePlayers().size() - 1 == 0)){
+            addFactory.addBlankLoreLine()
+                    .addLoreLine(StringUtils.formatColorCodes('&', "&eClicca per visualizzare!"));
+
+            base.setAction(5, e -> e.getWhoClicked().openInventory(getAddPlayerToWhitelist(player, plugin)));
+        }
+
+        base.setItem(5, addFactory.get());
+
+        return base.get();
+    }
+
+    public static Inventory getManageWhitelist(Player player, Plugin plugin){
+        Farm farm = Farm.reverse(player).get();
+
+        Map<ItemStack, Player> items = farm.getWhitelist().stream()
+                .filter(x -> farm.isWhitelisted(Bukkit.getPlayer(x)))
+                .collect(HashMap::new, (map, onlinePlayer) -> map.put(
+                        new ItemStackFactory(Material.PLAYER_HEAD)
+                                .setName(StringUtils.formatColorCodes('&', "&6" + Bukkit.getPlayer(onlinePlayer).getDisplayName()))
+                                .addLoreLine("Questo giocatore è whitelistato. Può entrare nella")
+                                .addLoreLine("tua fattoria in qualsiasi momento.")
+                                .addBlankLoreLine()
+                                .addLoreLine(StringUtils.formatColorCodes('&', "&eClicca per rimuovere!"))
+                                .get(),
+                        Bukkit.getPlayer(onlinePlayer)
+                ), HashMap::putAll);
+
+        InventoryFactory factory = new InventoryFactory(6, "Giocatori whitelistati", plugin)
+                .setClicksAllowed(false)
+                .setGlobalAction(e -> {
+                    if(!InventoryUtils.checkPresence(e)) return;
+                    if(!items.containsKey(e.getCurrentItem())) return;
+
+                    Player playerToRemove = items.get(e.getCurrentItem());
+                    if(!farm.isWhitelisted(playerToRemove)) return;
+
+                    farm.removeFromWhitelist(playerToRemove);
+                    player.sendMessage(StringUtils.formatColorCodes('&', "&e[Fattoria] &aWhitelist: &f" + playerToRemove.getDisplayName() + "&7 è stato rimosso dalla whitelist."));
+                });
+
+        return new MultipleInventoryFactory(items.keySet().stream().toList(), factory)
+                .get();
+    }
+
+    public static Inventory getAddPlayerToWhitelist(Player player, Plugin plugin){
+        Farm farm = Farm.reverse(player).get();
+
+        Map<ItemStack, Player> items = Bukkit.getOnlinePlayers().stream()
+                .filter(onlinePlayer -> !farm.isWhitelisted(onlinePlayer) &&
+                        !farm.getOwnerAsPlayer().equals(onlinePlayer))
+                .collect(HashMap::new, (map, onlinePlayer) -> map.put(
+                        new ItemStackFactory(Material.PLAYER_HEAD)
+                                .setName(StringUtils.formatColorCodes('&', "&6" + onlinePlayer.getDisplayName()))
+                                .addLoreLine("Aggiungi questo giocatore alla whitelist")
+                                .addLoreLine("della tua fattoria. Potrà entrarci in qualsiasi")
+                                .addLoreLine("momento.")
+                                .addBlankLoreLine()
+                                .addLoreLine(StringUtils.formatColorCodes('&', "&eClicca per aggiungere!"))
+                                .get(),
+                        onlinePlayer
+                ), HashMap::putAll);
+
+        InventoryFactory factory = new InventoryFactory(6, "Giocatori online", plugin)
+                .setClicksAllowed(false)
+                .setInventoryToShowOnClose(getWhitelistHome(player, plugin))
+                .setGlobalAction(e -> {
+                    if(!InventoryUtils.checkPresence(e)) return;
+                    if(!items.containsKey(e.getCurrentItem())) return;
+
+                    Player playerToAdd = items.get(e.getCurrentItem());
+                    if(farm.isWhitelisted(playerToAdd)) return;
+
+                    farm.whitelistPlayer(playerToAdd);
+                    player.sendMessage(StringUtils.formatColorCodes('&', "&e[Fattoria] &aWhitelist: &f" + playerToAdd.getDisplayName() + "&7 è stato whitelistato."));
+                });
+
+        return new MultipleInventoryFactory(items.keySet().stream().toList(), factory)
+                .get();
+    }
 }

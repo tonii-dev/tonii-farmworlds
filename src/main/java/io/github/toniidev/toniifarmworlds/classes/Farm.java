@@ -1,5 +1,9 @@
 package io.github.toniidev.toniifarmworlds.classes;
 
+import io.github.toniidev.toniifarmworlds.database.DatabaseItem;
+import io.github.toniidev.toniifarmworlds.database.DatabaseManager;
+import io.github.toniidev.toniifarmworlds.utils.InitializeUtils;
+import io.github.toniidev.toniifarmworlds.utils.WorldUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
@@ -7,16 +11,28 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.plugin.Plugin;
 
+import java.io.File;
+import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
-public class Farm implements Listener {
-    // A list to hold all the terrains (farms)
+public class Farm extends DatabaseItem<Farm> implements Listener {
+    // A thread-safe list to hold all the farms (terrains)
     private static final List<Farm> terrains = new ArrayList<>();
 
+    // The UUID of the player who owns this farm
     private UUID owner;
-    private final List<UUID> whitelist = new ArrayList<>();
+
+    // A thread-safe list of UUIDs of players who are whitelisted to access this farm
+    private final List<UUID> whitelist = new CopyOnWriteArrayList<>();
+
+    // The name of the world's farm
     private String worldName;
+
+    // A list to keep track of actions performed on the farm
     private final List<HistoryAction> history = new ArrayList<>();
 
     /**
@@ -24,17 +40,23 @@ public class Farm implements Listener {
      * @param owner The owner of the farm (player).
      */
     public Farm(Player owner) {
+        super(InitializeUtils.mainInstance, "farms", Farm.getTerrains());
+        if (owner == null) {
+            throw new IllegalArgumentException("Owner cannot be null");
+        }
         this.owner = owner.getUniqueId();
         this.worldName = "farm_" + this.owner;
 
         // Add the created farm to the list of terrains
         Farm.terrains.add(this);
+        this.save();
     }
 
     /**
-     * Blank constructor for registering the Listener.
+     * Default constructor for registering the Listener.
      */
     public Farm() {
+        super(InitializeUtils.mainInstance, "farms", Farm.getTerrains());
     }
 
     /**
@@ -46,15 +68,48 @@ public class Farm implements Listener {
     }
 
     /**
-     * Gets the owner of the farm.
+     * Loads farm data from the database.
+     * @param plugin The plugin instance.
+     */
+    public static void load(Plugin plugin) {
+        try {
+            List<Farm> loadedFarms = DatabaseManager.load(new File(plugin.getDataFolder(), "farms.db"), Farm.class);
+            Farm.getTerrains().addAll(loadedFarms);
+        } catch (SQLException | InstantiationException | IllegalAccessException e) {
+            throw new RuntimeException("Failed to load farms from database", e);
+        }
+    }
+
+    /**
+     * Gets the owner of the farm as a Player object.
      * @return The owner (player) of the farm.
      */
-    public Player getOwner() {
+    public Player getOwnerAsPlayer() {
         return Bukkit.getPlayer(owner);
     }
 
     /**
-     * Gets the whitelist of the farm (players who can access the farm).
+     * Gets the UUID of the owner of the farm.
+     * @return The owner's UUID.
+     */
+    public UUID getOwner() {
+        return this.owner;
+    }
+
+    /**
+     * Sets the UUID of the owner of the farm.
+     * @param owner The owner's UUID.
+     */
+    public void setOwner(UUID owner) {
+        if (owner == null) {
+            throw new IllegalArgumentException("Owner cannot be null");
+        }
+        this.owner = owner;
+        this.save();
+    }
+
+    /**
+     * Gets the list of UUIDs of players who are whitelisted to access the farm.
      * @return The list of whitelisted player UUIDs.
      */
     public List<UUID> getWhitelist() {
@@ -70,7 +125,19 @@ public class Farm implements Listener {
     }
 
     /**
-     * Gets the history of actions on the farm.
+     * Sets the name of the farm's world.
+     * @param worldName The world name.
+     */
+    public void setWorldName(String worldName) {
+        if (worldName == null || worldName.isEmpty()) {
+            throw new IllegalArgumentException("World name cannot be null or empty");
+        }
+        this.worldName = worldName;
+        this.save();
+    }
+
+    /**
+     * Gets the history of actions performed on the farm.
      * @return The history of actions.
      */
     public List<HistoryAction> getHistory() {
@@ -78,18 +145,37 @@ public class Farm implements Listener {
     }
 
     /**
-     * Gets the world of the farm.
+     * Gets the world associated with the farm.
+     * If the world doesn't exist, it creates a new world with the farm's world name.
      * @return The world associated with the farm.
      */
     public World getWorld() {
-        return Bukkit.getWorld(worldName);
+        return Optional.ofNullable(Bukkit.getWorld(worldName))
+                .orElseGet(() -> Bukkit.createWorld(new WorldCreator(worldName)));
     }
 
     /**
-     * Creates the world for the farm.
+     * Creates a new world for the farm.
      * @return The created farm world.
      */
     public World createWorld() {
+        return Bukkit.createWorld(new WorldCreator(worldName));
+    }
+
+    /**
+     * Creates a new world for the farm by cloning a template world.
+     * @param templateWorldName The name of the world to clone.
+     * @return The created farm world.
+     */
+    public World createWorld(String templateWorldName) {
+        if (templateWorldName == null || templateWorldName.isEmpty()) {
+            throw new IllegalArgumentException("Template world name cannot be null or empty");
+        }
+        try {
+            WorldUtils.cloneWorld(templateWorldName, worldName);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to clone world", e);
+        }
         return Bukkit.createWorld(new WorldCreator(worldName));
     }
 
@@ -99,7 +185,10 @@ public class Farm implements Listener {
      * @return True if the player owns a farm, otherwise false.
      */
     public static boolean doesPlayerOwnATerrain(Player player) {
-        return Farm.reverse(player).isPresent();
+        if (player == null) {
+            throw new IllegalArgumentException("Player cannot be null");
+        }
+        return reverse(player).isPresent();
     }
 
     /**
@@ -108,9 +197,11 @@ public class Farm implements Listener {
      * @return An Optional containing the farm, or empty if not found.
      */
     public static Optional<Farm> reverse(Player owner) {
-        return Farm.getTerrains()
-                .stream()
-                .filter(x -> x.getOwner().equals(owner))
+        if (owner == null) {
+            throw new IllegalArgumentException("Owner cannot be null");
+        }
+        return Farm.getTerrains().stream()
+                .filter(farm -> farm.getOwnerAsPlayer().equals(owner))
                 .findFirst();
     }
 
@@ -120,7 +211,10 @@ public class Farm implements Listener {
      * @return True if the world is a farm, otherwise false.
      */
     public static boolean isFarm(World world) {
-        return Farm.reverse(world).isPresent();
+        if (world == null) {
+            throw new IllegalArgumentException("World cannot be null");
+        }
+        return reverse(world).isPresent();
     }
 
     /**
@@ -129,9 +223,11 @@ public class Farm implements Listener {
      * @return An Optional containing the farm, or empty if not found.
      */
     public static Optional<Farm> reverse(World world) {
-        return Farm.getTerrains()
-                .stream()
-                .filter(x -> x.getWorld().equals(world))
+        if (world == null) {
+            throw new IllegalArgumentException("World cannot be null");
+        }
+        return Farm.getTerrains().stream()
+                .filter(farm -> farm.getWorld().equals(world))
                 .findFirst();
     }
 
@@ -141,13 +237,12 @@ public class Farm implements Listener {
      * @return A list of farms the player is whitelisted in.
      */
     public static List<Farm> getFarmsPlayerIsWhitelistedIn(Player player) {
-        List<Farm> value = new ArrayList<>();
-        for (Farm terrain : Farm.getTerrains()) {
-            if (terrain.getWhitelist().contains(player.getUniqueId())) {
-                value.add(terrain);
-            }
+        if (player == null) {
+            throw new IllegalArgumentException("Player cannot be null");
         }
-        return value;
+        return Farm.getTerrains().stream()
+                .filter(farm -> farm.getWhitelist().contains(player.getUniqueId()))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -156,8 +251,12 @@ public class Farm implements Listener {
      * @return The farm instance.
      */
     public Farm whitelistPlayer(Player player) {
+        if (player == null) {
+            throw new IllegalArgumentException("Player cannot be null");
+        }
         if (!this.whitelist.contains(player.getUniqueId())) {
             this.whitelist.add(player.getUniqueId());
+            this.save();
         }
         return this;
     }
@@ -168,8 +267,25 @@ public class Farm implements Listener {
      * @return The farm instance.
      */
     public Farm removeFromWhitelist(Player player) {
-        this.whitelist.remove(player.getUniqueId());
+        if (player == null) {
+            throw new IllegalArgumentException("Player cannot be null");
+        }
+        if (this.whitelist.remove(player.getUniqueId())) {
+            this.save();
+        }
         return this;
+    }
+
+    /**
+     * Checks if the specified player is whitelisted for this farm.
+     * @param player The player to check.
+     * @return True if the player is whitelisted, otherwise false.
+     */
+    public boolean isWhitelisted(Player player) {
+        if (player == null) {
+            throw new IllegalArgumentException("Player cannot be null");
+        }
+        return this.whitelist.contains(player.getUniqueId());
     }
 
     /**
@@ -177,7 +293,11 @@ public class Farm implements Listener {
      * @param player The player who accessed the farm.
      */
     public void registerAccess(Player player) {
+        if (player == null) {
+            throw new IllegalArgumentException("Player cannot be null");
+        }
         history.add(new HistoryAccess(player.getDisplayName()));
+        this.save();
     }
 
     /**
@@ -185,23 +305,28 @@ public class Farm implements Listener {
      * @param player The player who left the farm.
      */
     public void registerLeave(Player player) {
+        if (player == null) {
+            throw new IllegalArgumentException("Player cannot be null");
+        }
         history.add(new HistoryLeave(player.getDisplayName()));
+        this.save();
     }
 
     /**
      * Event handler for when a player switches worlds.
      * It registers the player leaving one farm and accessing another farm.
+     * @param e The event triggered by a player changing worlds.
      */
     @EventHandler
     public void onWorldSwitch(PlayerChangedWorldEvent e) {
-        // Register leave from the world if the player was in a farm
-        if (Farm.isFarm(e.getFrom())) {
-            Farm.reverse(e.getFrom()).get().registerLeave(e.getPlayer());
+        if (e == null) {
+            throw new IllegalArgumentException("Event cannot be null");
         }
 
+        // Register leave from the world if the player was in a farm
+        Farm.reverse(e.getFrom()).ifPresent(farm -> farm.registerLeave(e.getPlayer()));
+
         // Register access to the world if the player is entering a farm
-        if (Farm.isFarm(e.getPlayer().getWorld())) {
-            Farm.reverse(e.getPlayer().getWorld()).get().registerAccess(e.getPlayer());
-        }
+        Farm.reverse(e.getPlayer().getWorld()).ifPresent(farm -> farm.registerAccess(e.getPlayer()));
     }
 }
