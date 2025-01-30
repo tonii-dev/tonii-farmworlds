@@ -1,9 +1,11 @@
-package io.github.toniidev.toniifarmworlds.classes;
+package io.github.toniidev.toniifarmworlds.classes.extended;
+
+import io.github.toniidev.toniifarmworlds.classes.HistoryAction;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-public class HistoryAccess extends HistoryAction{
+public class HistoryAccess extends HistoryAction {
     public HistoryAccess(String playerName) {
         super(playerName);
     }

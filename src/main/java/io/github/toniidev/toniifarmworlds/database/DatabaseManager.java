@@ -12,12 +12,15 @@ import com.google.gson.internal.LinkedTreeMap;
 import io.github.toniidev.toniifarmworlds.classes.Farm;
 import io.github.toniidev.toniifarmworlds.database.adapters.FarmTypeAdapter;
 import io.github.toniidev.toniifarmworlds.database.adapters.LocalDateTimeAdapter;
+import io.github.toniidev.toniifarmworlds.link.ServerPlayer;
+import io.github.toniidev.toniifarmworlds.link.ServerPlayerTypeAdapter;
 import org.bukkit.Bukkit;
 
 public class DatabaseManager {
     private static final Gson gson = new GsonBuilder()
             .registerTypeAdapter(Farm.class, new FarmTypeAdapter())
             .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeAdapter())
+            .registerTypeAdapter(ServerPlayer.class, new ServerPlayerTypeAdapter())
             .create();
 
     // Save list of objects to a database file
@@ -41,7 +44,12 @@ public class DatabaseManager {
     }
 
     // Load list of objects from a database file
-    public static <T> List<T> load(File dbFile, Class<T> clazz) throws SQLException, InstantiationException, IllegalAccessException {
+    public static <T> List<T> load(File dbFile, Class<T> clazz) throws SQLException, InstantiationException, IllegalAccessException, IOException {
+        if (!dbFile.exists()) {
+            dbFile.getParentFile().mkdirs();
+            dbFile.createNewFile();
+        }
+
         List<T> list = new ArrayList<>();
         String url = "jdbc:sqlite:" + dbFile.getAbsolutePath();
         try (Connection conn = DriverManager.getConnection(url)) {

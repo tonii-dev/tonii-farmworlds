@@ -1,5 +1,6 @@
 package io.github.toniidev.toniifarmworlds.database;
 
+import io.github.toniidev.toniifarmworlds.database.DatabaseManager;
 import org.bukkit.plugin.Plugin;
 
 import java.io.File;
@@ -12,10 +13,15 @@ public class DatabaseItem<T> {
     private final List<T> list;
 
     public DatabaseItem(Plugin main, String fileName, List<T> listLinkedToItem) {
-        if (main == null || fileName == null || listLinkedToItem == null) {
-            throw new IllegalArgumentException("Arguments cannot be null");
+        if (main == null) {
+            throw new IllegalArgumentException("Main plugin instance cannot be null");
         }
         this.file = new File(main.getDataFolder(), fileName + ".db");
+        this.list = listLinkedToItem;
+    }
+
+    public DatabaseItem(File customFile, List<T> listLinkedToItem) {
+        this.file = customFile;
         this.list = listLinkedToItem;
     }
 

@@ -1,8 +1,10 @@
 package io.github.toniidev.toniifarmworlds.classes;
 
+import io.github.toniidev.toniifarmworlds.classes.extended.HistoryAccess;
+import io.github.toniidev.toniifarmworlds.classes.extended.HistoryLeave;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Date;
 
 public abstract class HistoryAction {
     private final LocalDateTime date;

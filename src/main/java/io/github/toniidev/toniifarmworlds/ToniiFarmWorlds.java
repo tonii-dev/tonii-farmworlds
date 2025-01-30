@@ -6,6 +6,7 @@ import io.github.toniidev.toniifarmworlds.commands.GeneralFarm;
 import io.github.toniidev.toniifarmworlds.database.DatabaseManager;
 import io.github.toniidev.toniifarmworlds.factories.InputFactory;
 import io.github.toniidev.toniifarmworlds.factories.InventoryFactory;
+import io.github.toniidev.toniifarmworlds.link.ServerPlayer;
 import io.github.toniidev.toniifarmworlds.utils.InitializeUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -23,6 +24,7 @@ public final class ToniiFarmWorlds extends JavaPlugin {
 
         // load farms
         Farm.load(this);
+        ServerPlayer.load(this);
 
         Bukkit.getPluginManager().registerEvents(new InventoryFactory(), this);
         Bukkit.getPluginManager().registerEvents(new InputFactory(this), this);

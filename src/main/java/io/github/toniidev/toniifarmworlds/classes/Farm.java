@@ -1,5 +1,7 @@
 package io.github.toniidev.toniifarmworlds.classes;
 
+import io.github.toniidev.toniifarmworlds.classes.extended.HistoryAccess;
+import io.github.toniidev.toniifarmworlds.classes.extended.HistoryLeave;
 import io.github.toniidev.toniifarmworlds.database.DatabaseItem;
 import io.github.toniidev.toniifarmworlds.database.DatabaseManager;
 import io.github.toniidev.toniifarmworlds.utils.InitializeUtils;
@@ -14,6 +16,7 @@ import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.plugin.Plugin;
 
 import java.io.File;
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -75,7 +78,7 @@ public class Farm extends DatabaseItem<Farm> implements Listener {
         try {
             List<Farm> loadedFarms = DatabaseManager.load(new File(plugin.getDataFolder(), "farms.db"), Farm.class);
             Farm.getTerrains().addAll(loadedFarms);
-        } catch (SQLException | InstantiationException | IllegalAccessException e) {
+        } catch (SQLException | InstantiationException | IllegalAccessException | IOException e) {
             throw new RuntimeException("Failed to load farms from database", e);
         }
     }
@@ -266,11 +269,11 @@ public class Farm extends DatabaseItem<Farm> implements Listener {
      * @param player The player to remove.
      * @return The farm instance.
      */
-    public Farm removeFromWhitelist(Player player) {
+    public Farm removeFromWhitelist(UUID player) {
         if (player == null) {
             throw new IllegalArgumentException("Player cannot be null");
         }
-        if (this.whitelist.remove(player.getUniqueId())) {
+        if (this.whitelist.remove(player)) {
             this.save();
         }
         return this;
@@ -278,14 +281,11 @@ public class Farm extends DatabaseItem<Farm> implements Listener {
 
     /**
      * Checks if the specified player is whitelisted for this farm.
-     * @param player The player to check.
+     * @param uuid The uuid of the player to check.
      * @return True if the player is whitelisted, otherwise false.
      */
-    public boolean isWhitelisted(Player player) {
-        if (player == null) {
-            throw new IllegalArgumentException("Player cannot be null");
-        }
-        return this.whitelist.contains(player.getUniqueId());
+    public boolean isWhitelisted(UUID uuid) {
+        return this.whitelist.contains(uuid);
     }
 
     /**

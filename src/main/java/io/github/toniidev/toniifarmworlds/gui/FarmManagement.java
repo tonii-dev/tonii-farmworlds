@@ -1,13 +1,15 @@
 package io.github.toniidev.toniifarmworlds.gui;
 
 import io.github.toniidev.toniifarmworlds.classes.Farm;
-import io.github.toniidev.toniifarmworlds.classes.HistoryAccess;
+import io.github.toniidev.toniifarmworlds.classes.extended.HistoryAccess;
 import io.github.toniidev.toniifarmworlds.classes.HistoryAction;
 import io.github.toniidev.toniifarmworlds.commands.CreateFarm;
 import io.github.toniidev.toniifarmworlds.factories.InventoryFactory;
 import io.github.toniidev.toniifarmworlds.factories.ItemStackFactory;
 import io.github.toniidev.toniifarmworlds.factories.MultipleInventoryFactory;
+import io.github.toniidev.toniifarmworlds.link.ServerPlayer;
 import io.github.toniidev.toniifarmworlds.utils.InventoryUtils;
+import io.github.toniidev.toniifarmworlds.utils.PlayerUtils;
 import io.github.toniidev.toniifarmworlds.utils.StringUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -17,10 +19,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class FarmManagement {
@@ -277,17 +276,17 @@ public class FarmManagement {
     public static Inventory getManageWhitelist(Player player, Plugin plugin){
         Farm farm = Farm.reverse(player).get();
 
-        Map<ItemStack, Player> items = farm.getWhitelist().stream()
-                .filter(x -> farm.isWhitelisted(Bukkit.getPlayer(x)))
-                .collect(HashMap::new, (map, onlinePlayer) -> map.put(
+        Map<ItemStack, UUID> items = farm.getWhitelist().stream()
+                .filter(farm::isWhitelisted)
+                .collect(HashMap::new, (map, uuid) -> map.put(
                         new ItemStackFactory(Material.PLAYER_HEAD)
-                                .setName(StringUtils.formatColorCodes('&', "&6" + Bukkit.getPlayer(onlinePlayer).getDisplayName()))
+                                .setName(StringUtils.formatColorCodes('&', "&6" + ServerPlayer.getInstance(uuid).getDisplayName()))
                                 .addLoreLine("Questo giocatore è whitelistato. Può entrare nella")
                                 .addLoreLine("tua fattoria in qualsiasi momento.")
                                 .addBlankLoreLine()
                                 .addLoreLine(StringUtils.formatColorCodes('&', "&eClicca per rimuovere!"))
                                 .get(),
-                        Bukkit.getPlayer(onlinePlayer)
+                        uuid
                 ), HashMap::putAll);
 
         InventoryFactory factory = new InventoryFactory(6, "Giocatori whitelistati", plugin)
@@ -296,11 +295,11 @@ public class FarmManagement {
                     if(!InventoryUtils.checkPresence(e)) return;
                     if(!items.containsKey(e.getCurrentItem())) return;
 
-                    Player playerToRemove = items.get(e.getCurrentItem());
+                    UUID playerToRemove = items.get(e.getCurrentItem());
                     if(!farm.isWhitelisted(playerToRemove)) return;
 
                     farm.removeFromWhitelist(playerToRemove);
-                    player.sendMessage(StringUtils.formatColorCodes('&', "&e[Fattoria] &aWhitelist: &f" + playerToRemove.getDisplayName() + "&7 è stato rimosso dalla whitelist."));
+                    player.sendMessage(StringUtils.formatColorCodes('&', "&e[Fattoria] &aWhitelist: &f" + ServerPlayer.getInstance(playerToRemove).getDisplayName() + "&7 è stato rimosso dalla whitelist."));
                 });
 
         return new MultipleInventoryFactory(items.keySet().stream().toList(), factory)
@@ -311,7 +310,7 @@ public class FarmManagement {
         Farm farm = Farm.reverse(player).get();
 
         Map<ItemStack, Player> items = Bukkit.getOnlinePlayers().stream()
-                .filter(onlinePlayer -> !farm.isWhitelisted(onlinePlayer) &&
+                .filter(onlinePlayer -> !farm.isWhitelisted(onlinePlayer.getUniqueId()) &&
                         !farm.getOwnerAsPlayer().equals(onlinePlayer))
                 .collect(HashMap::new, (map, onlinePlayer) -> map.put(
                         new ItemStackFactory(Material.PLAYER_HEAD)
@@ -333,7 +332,7 @@ public class FarmManagement {
                     if(!items.containsKey(e.getCurrentItem())) return;
 
                     Player playerToAdd = items.get(e.getCurrentItem());
-                    if(farm.isWhitelisted(playerToAdd)) return;
+                    if(farm.isWhitelisted(playerToAdd.getUniqueId())) return;
 
                     farm.whitelistPlayer(playerToAdd);
                     player.sendMessage(StringUtils.formatColorCodes('&', "&e[Fattoria] &aWhitelist: &f" + playerToAdd.getDisplayName() + "&7 è stato whitelistato."));
